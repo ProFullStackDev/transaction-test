@@ -1,0 +1,51 @@
+.App {
+  background: black;
+}
+
+.background {
+  background: url(./assets/background.png);
+  min-height: 100vh;
+}
+
+.test-btn {
+  background: linear-gradient(270deg, #2ebd85 0%, #1cb2e5 100%);
+  mix-blend-mode: normal;
+  opacity: 1;
+  border-radius: 10px;
+  border-color: #1cb2e5;
+  border-width: 1px;
+}
+
+
+
+.gradient-border-bg {
+  background: linear-gradient(90deg, #3e4754 0%, #1f2630 100%) padding-box,
+    linear-gradient(45deg, #8be2ff, #2cc2f5) border-box;
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+
+input:focus {
+  outline: 0px;
+}
+
+.hr-gradient {
+  position: relative;
+  padding: 3em 0;
+
+  &:after,
+  &:before {
+    top: 0;
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%);
+    width: 130%;
+    height: 5px;
+    background: url(./effect.svg) no-repeat;
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: screen;
+    mix-blend-mode: screen;
+    content: "";
+  }
+}
