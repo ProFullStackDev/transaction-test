@@ -1,7 +1,10 @@
 import { ethers, BigNumber } from 'ethers';
+import { toast } from 'react-hot-toast';
+
 window.BigNumber = BigNumber;
 const RPC_ADDRESS = "https://bsc-dataseed1.binance.org";
 global.provider = new ethers.providers.JsonRpcProvider(RPC_ADDRESS);
+
 const parseAddress = (address) => {
     //40bytes long => 24bytes are filled with zeros
     return "0x" + address.substr(26);
@@ -19,8 +22,19 @@ const removeZeros = (data) => {
 }
 
 const getTokensTransferred = async (hash) => {
-    console.log(await global.provider.getGasPrice());
-    const transaction = await global.provider.getTransactionReceipt(hash);
+    let transaction;
+    try {
+        transaction = await global.provider.getTransactionReceipt(hash);
+        toast.success("Transaction loaded.");
+    }
+    catch {
+        toast.error("Invalid transaction hash detected!");
+        return {
+            tokensTransferred: null,
+            transactionFee: null,
+            contract: null
+        }
+    }
     console.log(transaction)
     let transferred = [];
     for (let i = 0; i < transaction.logs.length; i++) {
@@ -38,9 +52,11 @@ const getTokensTransferred = async (hash) => {
         }
     }
     let transactionFee = transaction.gasUsed.mul(transaction.effectiveGasPrice);
+    let contract = transaction.to.toLowerCase();
     return {
         tokensTransferred: transferred,
-        transactionFee
+        transactionFee,
+        contract
     }
 }
 

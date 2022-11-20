@@ -1,8 +1,10 @@
 import './App.scss';
 import { useState } from 'react';
 import { getTokensTransferred } from './api/transactionApi';
-import { getReserves, getAmountOut, getAmountsOut } from './api/tokenApi';
+import { getAmountsOut } from './api/tokenApi';
+import toast, { Toaster } from 'react-hot-toast';
 import calcUSD from './api/tokenPriceApi';
+
 const log = console.log;
 const App = () => {
 
@@ -13,54 +15,80 @@ const App = () => {
   let [transactionFee, setTransactionFee] = useState("__");
   let [flashloan, setFlashloan] = useState("__");
 
+
   const test = async () => {
     //test the transaction with the hash
     let hash = document.getElementById("hash").value.trim();
-    let { tokensTransferred, transactionFee } = await getTokensTransferred(hash);
+    let { tokensTransferred, transactionFee, contract } = await getTokensTransferred(hash);
     log("A", tokensTransferred);
+    if (!tokensTransferred) {
+      setTransactionFee(0);
+      initValues();
+      return;
+    }
+    let previousProfit = calcProfit(tokensTransferred, contract);
     let swaps = await currentSwaps(tokensTransferred);
-    // if (swaps.length === 0) {
-    //   initValues();
-    // }
-    // else {
-    //   let absoluteProfit = swaps.pop().sub(tokensTransferred[0].amount);
-    //   let previousProfit = tokensTransferred[tokensTransferred.length - 1].amount - tokensTransferred[0].amount - transactionFee;
-    //   let relativeProfit = absoluteProfit.sub(previousProfit);
-    //   let token_price = await calcUSD(tokensTransferred[0].token);
-    //   setRelaProfit(convertToBNB(relativeProfit - transactionFee));
-    //   setAbsoProfit(convertToBNB(absoluteProfit - transactionFee));
-    //   setUsdt(token_price);
-    // }
-    // setTransactionFee(transactionFee / 10 ** 18);
-    // setFlashloan(0);
+    toast.success("Profit calculated.");
+    if (swaps.length === 0 || previousProfit === 0) {
+      initValues();
+    }
+    else {
+      let flashloanInterest = calcFlashloanInterest(tokensTransferred, contract);
+      let absoluteProfit = calcProfit(tokensTransferred, contract, swaps);
+      let relativeProfit = absoluteProfit.sub(previousProfit);
+      let token_price = await calcUSD(tokensTransferred[0].token);
+      setRelaProfit(convertToBNB(relativeProfit));
+      setAbsoProfit(convertToBNB(absoluteProfit - flashloanInterest - transactionFee));
+      setUsdt(token_price);
+      setFlashloan(flashloanInterest);
+    }
+    setTransactionFee(transactionFee / 10 ** 18);
+    toast.success("Transaction fee calculated");
   }
 
-  const initValues = () => {
+  const calcProfit = (tokensTransferred, contract) => {
+    if (tokensTransferred.length === 0) return 0;
+    let amountIn = tokensTransferred.filter(transferred => transferred.receiver === contract).pop()?.amount;
+    let amountOut = tokensTransferred.filter(transferred => transferred.sender === contract).pop()?.amount;
+    if (!amountIn | !amountOut) return 0;
+    return amountIn.sub(amountOut);
+  }
+
+  const initValues = async () => {
+    let bnb_price = await calcUSD();
     setRelaProfit(0);
     setAbsoProfit(0);
+    setUsdt(bnb_price);
+    setFlashloan(0);
   }
 
   const currentSwaps = async (tokensTransferred) => {
     //get amount outs while testing
-    let swaps = [], swaps1 = [];
+    let swaps = [];
     for (let i = 0; i < tokensTransferred.length - 1; i++) {
-      let { receiver, token, amount } = tokensTransferred[i];
-      let reserves = await getReserves(receiver);
-      let index = reserves.tokens.indexOf(token);
-      let amountIn = i === 0 ? amount : swaps[i - 1];
-      let amountOut = await getAmountOut(amountIn, reserves.reserves[index], reserves.reserves[1 - index]);
-      let amountOut1 = await getAmountsOut(tokensTransferred, i);
-      tokensTransferred[i + 1].amount = amountOut1;
+      let amountOut = await getAmountsOut(tokensTransferred, i);
+      tokensTransferred[i + 1].amount = amountOut;
       swaps.push(amountOut);
-      swaps1.push(amountOut1)
     }
     log(swaps);
-    log(swaps1);
     return swaps;
   }
 
   const convertToBNB = (value) => {
     return (value / 10 ** 18).toFixed(5);
+  }
+
+  const calcFlashloanInterest = (tokensTransferred, contract) => {
+    let receivers = tokensTransferred.map(transfer => transfer.receiver);
+    let assetTransfer = tokensTransferred.filter((transfer, index) => {
+      let rightIndex = receivers.indexOf(transfer.sender);
+      if (rightIndex > index && transfer.sender !== contract) return true;
+      return false;
+    });
+    if (assetTransfer.length === 0) return 0;
+    let flashloanInterest = assetTransfer.map(transfer => transfer.amount).reduce((sum, cur) => sum + cur) * 0.09 / 100; //0.09%
+    console.log(flashloanInterest);
+    return flashloanInterest;
   }
 
   return (
@@ -81,10 +109,11 @@ const App = () => {
           <div className='text-green-400'>Relative Profit : {relaProfit > 0 && "+"}{relaProfit} | {usdt ? (relaProfit * usdt).toFixed(5) : "__"}US$</div>
           <div className='text-yellow-100'>Absolute Profit : {absoProfit} | {usdt ? (absoProfit * usdt).toFixed(5) : "__"}US$</div>
           <div className='text-pink-200'>Input amount of tokens to start the transaction : {iniToken}</div>
-          <div className='text-blue-300'>Transaction fee : {transactionFee}</div>
+          <div className='text-blue-300'>Transaction fee : {transactionFee} | {usdt ? (transactionFee * usdt).toFixed(5) : "__"}US$</div>
           <div className='text-gray-200'>Flashloan interest : {flashloan}</div>
         </div>
       </div>
+      <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
     </div>
   );
 }

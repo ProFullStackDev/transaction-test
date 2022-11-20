@@ -52,8 +52,9 @@ function setDecimals(number, decimals) {
     return numberAbs + numberDecimals;
 }
 
-async function calcUSD(address) {
+async function calcUSD(address = "BNB") {
     let bnbPrice = await calcBNBPrice() // query pancakeswap to get the price of BNB in USDT
+    if (address === "BNB") return bnbPrice;
     console.log(`CURRENT BNB PRICE: ${bnbPrice}`);
     // Them amount of tokens to sell. adjust this value based on you need, you can encounter errors with high supply tokens when this value is 1.
     let tokens_to_sell = 1;
