@@ -35,7 +35,6 @@ const getTokensTransferred = async (hash) => {
             contract: null
         }
     }
-    console.log(transaction)
     let transferred = [];
     for (let i = 0; i < transaction.logs.length; i++) {
         let log = transaction.logs[i];
@@ -62,7 +61,6 @@ const getTokensTransferred = async (hash) => {
 
 const getSwaps = async (hash) => {
     const transaction = await global.provider.getTransactionReceipt(hash);
-    console.log(transaction);
     let swaps = [];
     for (let i = 0; i < transaction.logs.length; i++) {
         if (transaction.logs[i].topics.length === 1) {

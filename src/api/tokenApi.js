@@ -18,9 +18,7 @@ const getAmountsOut = async (transferred, index) => {
     try {
         let symbol = await pairContract.symbol();
         let routerContract = router[symbol];
-        console.log(symbol);
         let amountOut = await routerContract.getAmountsOut(transferred[index].amount, [transferred[index].token, transferred[index + 1].token]);
-        console.log(amountOut)
         return amountOut[1];
     }
     catch {

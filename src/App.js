@@ -5,7 +5,6 @@ import { getAmountsOut } from './api/tokenApi';
 import toast, { Toaster } from 'react-hot-toast';
 import calcUSD from './api/tokenPriceApi';
 
-const log = console.log;
 const App = () => {
 
   let [relaProfit, setRelaProfit] = useState("__");
@@ -20,7 +19,6 @@ const App = () => {
     //test the transaction with the hash
     let hash = document.getElementById("hash").value.trim();
     let { tokensTransferred, transactionFee, contract } = await getTokensTransferred(hash);
-    log("A", tokensTransferred);
     if (!tokensTransferred) {
       setTransactionFee(0);
       initValues();
@@ -70,7 +68,6 @@ const App = () => {
       tokensTransferred[i + 1].amount = amountOut;
       swaps.push(amountOut);
     }
-    log(swaps);
     return swaps;
   }
 
@@ -87,7 +84,6 @@ const App = () => {
     });
     if (assetTransfer.length === 0) return 0;
     let flashloanInterest = assetTransfer.map(transfer => transfer.amount).reduce((sum, cur) => sum + cur) * 0.09 / 100; //0.09%
-    console.log(flashloanInterest);
     return flashloanInterest;
   }
 
