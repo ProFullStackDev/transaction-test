@@ -50,11 +50,13 @@ const getTokensTransferred = async (hash) => {
             i++;
         }
     }
-    let transactionFee = transaction.gasUsed.mul(transaction.effectiveGasPrice);
+    let gasUsed = transaction.gasUsed;
+    let gasPrice = transaction.effectiveGasPrice;
     let contract = transaction.to.toLowerCase();
     return {
         tokensTransferred: transferred,
-        transactionFee,
+        gasUsed,
+        gasPrice,
         contract
     }
 }

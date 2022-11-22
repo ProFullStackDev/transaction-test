@@ -4,27 +4,32 @@ import { getTokensTransferred } from './api/transactionApi';
 import { getAmountsOut } from './api/tokenApi';
 import toast, { Toaster } from 'react-hot-toast';
 import calcUSD from './api/tokenPriceApi';
+import { setIn } from 'immutable';
 
 const App = () => {
 
-  let [relaProfit, setRelaProfit] = useState("__");
   let [absoProfit, setAbsoProfit] = useState("__");
+  let [preProfit, setPreProfit] = useState("__");
   let [usdt, setUsdt] = useState(0);
   let [iniToken, setIniToken] = useState("__");
+  let [outToken, setOutToken] = useState("__");
+  let [outTokenNew, setOutTokenNew] = useState("__");
   let [transactionFee, setTransactionFee] = useState("__");
   let [flashloan, setFlashloan] = useState("__");
-
+  let [gasPrice, setGasPrice] = useState("__");
+  let [gasUsed, setGasUsed] = useState("__");
 
   const test = async () => {
     //test the transaction with the hash
     let hash = document.getElementById("hash").value.trim();
-    let { tokensTransferred, transactionFee, contract } = await getTokensTransferred(hash);
+    let { tokensTransferred, gasUsed, gasPrice, contract } = await getTokensTransferred(hash);
     if (!tokensTransferred) {
       setTransactionFee(0);
       initValues();
       return;
     }
     let previousProfit = calcProfit(tokensTransferred, contract);
+    setPreProfit(ToBNB(previousProfit));
     let swaps = await currentSwaps(tokensTransferred);
     toast.success("Profit calculated.");
     if (swaps.length === 0 || previousProfit === 0) {
@@ -32,29 +37,33 @@ const App = () => {
     }
     else {
       let flashloanInterest = calcFlashloanInterest(tokensTransferred, contract);
-      let absoluteProfit = calcProfit(tokensTransferred, contract, swaps);
-      let relativeProfit = absoluteProfit.sub(previousProfit);
+      let absoluteProfit = calcProfit(tokensTransferred, contract, "current");
       let token_price = await calcUSD(tokensTransferred[0].token);
-      setRelaProfit(convertToBNB(relativeProfit));
-      setAbsoProfit(convertToBNB(absoluteProfit - flashloanInterest - transactionFee));
+      setAbsoProfit(ToBNB(absoluteProfit - flashloanInterest - gasUsed * gasPrice));
       setUsdt(token_price);
-      setFlashloan(flashloanInterest);
+      setFlashloan(ToBNB(flashloanInterest));
     }
-    setTransactionFee(transactionFee / 10 ** 18);
+    setTransactionFee(ToBNB(gasUsed * gasPrice));
+    setGasPrice(ToBNB(gasPrice).toFixed(10));
+    setGasUsed(gasUsed.toString());
     toast.success("Transaction fee calculated");
   }
 
-  const calcProfit = (tokensTransferred, contract) => {
+  const calcProfit = (tokensTransferred, contract, time = "previous") => {
     if (tokensTransferred.length === 0) return 0;
     let amountIn = tokensTransferred.filter(transferred => transferred.receiver === contract).pop()?.amount;
     let amountOut = tokensTransferred.filter(transferred => transferred.sender === contract).pop()?.amount;
     if (!amountIn | !amountOut) return 0;
+    if (time === "previous") {
+      setIniToken(ToBNB(amountOut));
+      setOutToken(ToBNB(amountIn));
+    }
+    else setOutTokenNew(ToBNB(amountIn));
     return amountIn.sub(amountOut);
   }
 
   const initValues = async () => {
     let bnb_price = await calcUSD();
-    setRelaProfit(0);
     setAbsoProfit(0);
     setUsdt(bnb_price);
     setFlashloan(0);
@@ -71,8 +80,8 @@ const App = () => {
     return swaps;
   }
 
-  const convertToBNB = (value) => {
-    return (value / 10 ** 18).toFixed(5);
+  const ToBNB = (value) => {
+    return (value / 10 ** 18);
   }
 
   const calcFlashloanInterest = (tokensTransferred, contract) => {
@@ -89,7 +98,7 @@ const App = () => {
 
   return (
     <div className="text-white App">
-      <div className='py-20 sm:px-20 md:px-32 lg:px-60 background px-9'>
+      <div className='pt-20 sm:px-20 md:px-32 lg:px-60 background px-9'>
         <div className="w-full text-3xl">
           Type the transaction ID and test to see whether it is profitable.
         </div>
@@ -102,10 +111,17 @@ const App = () => {
           test
         </button>
         <div className='flex flex-col gap-8 text-2xl hr-gradient'>
-          <div className='text-green-400'>Relative Profit : {relaProfit > 0 && "+"}{relaProfit} | {usdt ? (relaProfit * usdt).toFixed(5) : "__"}US$</div>
-          <div className='text-yellow-100'>Absolute Profit : {absoProfit} | {usdt ? (absoProfit * usdt).toFixed(5) : "__"}US$</div>
-          <div className='text-pink-200'>Input amount of tokens to start the transaction : {iniToken}</div>
-          <div className='text-blue-300'>Transaction fee : {transactionFee} | {usdt ? (transactionFee * usdt).toFixed(5) : "__"}US$</div>
+          <div className='text-green-300'>Input Amount By Token : {iniToken}</div>
+          <div className='text-blue-200'>Out Amount By Token of Original Transaction : {outToken}</div>
+          <div className='text-blue-300'>Out Amount By Token of New Transaction : {outTokenNew}</div>
+          <div className='text-yellow-100'>Profit By Token of Original Transaction : {preProfit}</div>
+          <div className='text-yellow-200'>Profit By Token of New Transaction : {absoProfit}</div>
+          <div className='text-pink-200'>Profit By BUSD of Original Transaction : {usdt !== 0 ? (preProfit * usdt) : "__"}</div>
+          <div className='text-pink-300'>Profit By BUSD of New Transaction : {usdt !== 0 ? (absoProfit * usdt) : "__"}</div>
+          <div className='text-gray-300'>Gas Price : {gasPrice}BNB</div>
+          <div className='text-gray-400'>Gas Used : {gasUsed}</div>
+          <div className='text-gray-500'>Gas Fee : {transactionFee}BNB</div>
+          <div className='text-cyan-200'>Token Price : {usdt} US$</div>
           <div className='text-gray-200'>Flashloan interest : {flashloan}</div>
         </div>
       </div>
