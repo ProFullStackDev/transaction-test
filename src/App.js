@@ -1,72 +1,91 @@
 import './App.scss';
 import { useState } from 'react';
-import { getTokensTransferred } from './api/transactionApi';
-import { getAmountsOut } from './api/tokenApi';
+import { getTokensTransferred } from './api/transaction.api';
+import { getAmountsOut, getRefund } from './api/token.api';
 import toast, { Toaster } from 'react-hot-toast';
-import calcUSD from './api/tokenPriceApi';
-import { setIn } from 'immutable';
+import calcUSD from './api/tokenprice.api';
 
 const App = () => {
 
-  let [absoProfit, setAbsoProfit] = useState("__");
-  let [preProfit, setPreProfit] = useState("__");
-  let [usdt, setUsdt] = useState(0);
-  let [iniToken, setIniToken] = useState("__");
-  let [outToken, setOutToken] = useState("__");
-  let [outTokenNew, setOutTokenNew] = useState("__");
-  let [transactionFee, setTransactionFee] = useState("__");
-  let [flashloan, setFlashloan] = useState("__");
-  let [gasPrice, setGasPrice] = useState("__");
-  let [gasUsed, setGasUsed] = useState("__");
+  const [absoProfit, setAbsoProfit] = useState(0);
+  const [preProfit, setPreProfit] = useState(0);
+  const [usdt, setUsdt] = useState(0);
+  const [iniToken, setIniToken] = useState(0);
+  const [outToken, setOutToken] = useState(0);
+  const [outTokenNew, setOutTokenNew] = useState(0);
+  const [transactionFee, setTransactionFee] = useState(0);
+  const [gasPrice, setGasPrice] = useState(0);
+  const [gasUsed, setGasUsed] = useState(0);
+  const [unit, setUnit] = useState("");
+  let profitUnit = "";
+  let profitToken = "";
+  let addedFee = 0;
 
   const test = async () => {
+
     //test the transaction with the hash
     let hash = document.getElementById("hash").value.trim();
     let { tokensTransferred, gasUsed, gasPrice, contract } = await getTokensTransferred(hash);
+    addedFee = 0;
+    console.log(tokensTransferred);
     if (!tokensTransferred) {
       setTransactionFee(0);
       initValues();
       return;
     }
-    let previousProfit = calcProfit(tokensTransferred, contract);
-    setPreProfit(ToBNB(previousProfit));
+    //calculate the profit of the origal transaction.    
+    let previousProfit = await calcProfit(tokensTransferred, contract);
+    setPreProfit(toBNB(previousProfit));
+    console.log(tokensTransferred);
     let swaps = await currentSwaps(tokensTransferred);
     toast.success("Profit calculated.");
     if (swaps.length === 0 || previousProfit === 0) {
       initValues();
+    } else {
+      const flashloanExist = await calcRefund(tokensTransferred, contract);
+      let tokenPrice = await calcUSD(profitToken);
+      let absoluteProfit = await calcProfit(tokensTransferred, contract, "current");
+      if (flashloanExist) {
+        setIniToken(0 + profitUnit);
+        setOutToken(toBNB(previousProfit) + profitUnit);
+        setOutTokenNew(toBNB(absoluteProfit) - addedFee / tokenPrice + profitUnit);
+      }
+      setAbsoProfit(toBNB(absoluteProfit) - addedFee / tokenPrice);
+      setUsdt(tokenPrice);
     }
-    else {
-      let flashloanInterest = calcFlashloanInterest(tokensTransferred, contract);
-      let absoluteProfit = calcProfit(tokensTransferred, contract, "current");
-      let token_price = await calcUSD(tokensTransferred[0].token);
-      setAbsoProfit(ToBNB(absoluteProfit - flashloanInterest - gasUsed * gasPrice));
-      setUsdt(token_price);
-      setFlashloan(ToBNB(flashloanInterest));
-    }
-    setTransactionFee(ToBNB(gasUsed * gasPrice));
-    setGasPrice(ToBNB(gasPrice).toFixed(10));
+
+    //gas estimation
+    setTransactionFee(toBNB(gasUsed * gasPrice));
+    setGasPrice(toBNB(gasPrice).toFixed(10));
     setGasUsed(gasUsed.toString());
     toast.success("Transaction fee calculated");
   }
 
-  const calcProfit = (tokensTransferred, contract, time = "previous") => {
-    if (tokensTransferred.length === 0) return 0;
-    let amountIn = tokensTransferred.filter(transferred => transferred.receiver === contract).pop()?.amount;
-    let amountOut = tokensTransferred.filter(transferred => transferred.sender === contract).pop()?.amount;
+  const calcProfit = async (tokensTransferred, contract, time = "previous") => {
+    const filtered = filterTransaction(tokensTransferred);
+    if (filtered.length === 0) return 0;
+    let inputTrans = filtered.filter(transferred => transferred.receiver === contract).pop();
+    let amountIn = inputTrans?.amount;
+    let outputTrans = filtered.filter(transferred => transferred.sender === contract).shift();
+    let amountOut = outputTrans?.amount;
     if (!amountIn | !amountOut) return 0;
     if (time === "previous") {
-      setIniToken(ToBNB(amountOut));
-      setOutToken(ToBNB(amountIn));
+      let flashloanExist = await calcRefund(tokensTransferred, contract, "no-test");
+      if (!flashloanExist) {
+        setIniToken(toBNB(amountOut) + outputTrans.symbol);
+        setOutToken(toBNB(amountIn) + inputTrans.symbol);
+      }
     }
-    else setOutTokenNew(ToBNB(amountIn));
+    else setOutTokenNew(toBNB(amountIn) + inputTrans.symbol);
+    profitUnit = outputTrans.symbol;
+    profitToken = outputTrans.token;
+    setUnit(profitUnit);
     return amountIn.sub(amountOut);
   }
 
   const initValues = async () => {
-    let bnb_price = await calcUSD();
     setAbsoProfit(0);
-    setUsdt(bnb_price);
-    setFlashloan(0);
+    setUsdt(await calcUSD());
   }
 
   const currentSwaps = async (tokensTransferred) => {
@@ -74,26 +93,54 @@ const App = () => {
     let swaps = [];
     for (let i = 0; i < tokensTransferred.length - 1; i++) {
       let amountOut = await getAmountsOut(tokensTransferred, i);
-      tokensTransferred[i + 1].amount = amountOut;
+      if (tokensTransferred.filter(trans => trans.amount.eq(tokensTransferred[i + 1].amount)).length < 2) {
+        tokensTransferred[i + 1].amount = amountOut;
+      }
       swaps.push(amountOut);
     }
     return swaps;
   }
 
-  const ToBNB = (value) => {
-    return (value / 10 ** 18);
+  const toBNB = (value) => {
+    return value / 10 ** 18;
   }
 
-  const calcFlashloanInterest = (tokensTransferred, contract) => {
+  const filterTransaction = (transferred) => {
+    transferred.forEach((transfer) => {
+      let count = transferred.filter(trans => {
+        if (trans === 0) return false;
+        return trans.amount.eq(transfer.amount);
+      }).length;
+      if (count > 1) {
+        transferred = transferred.map(trans => {
+          if (trans === 0 || trans.amount.eq(transfer.amount)) {
+            return 0;
+          } else {
+            return trans;
+          }
+        })
+      }
+    });
+    return transferred.filter(transfer => transfer !== 0);
+  }
+
+  const calcRefund = async (tokensTransferred, contract, method = "test") => {
     let receivers = tokensTransferred.map(transfer => transfer.receiver);
     let assetTransfer = tokensTransferred.filter((transfer, index) => {
       let rightIndex = receivers.indexOf(transfer.sender);
       if (rightIndex > index && transfer.sender !== contract) return true;
       return false;
     });
-    if (assetTransfer.length === 0) return 0;
-    let flashloanInterest = assetTransfer.map(transfer => transfer.amount).reduce((sum, cur) => sum + cur) * 0.09 / 100; //0.09%
-    return flashloanInterest;
+    if (method === "test") {
+      for (let transfer of assetTransfer) {
+        let paybackTransfer = tokensTransferred.find(trans => (
+          trans.receiver === transfer.sender
+        ));
+        let refund = await getRefund(transfer, paybackTransfer);
+        addedFee += toBNB(refund.sub(paybackTransfer.amount)) * await calcUSD(paybackTransfer.token);
+      }
+    }
+    return assetTransfer.length !== 0;
   }
 
   return (
@@ -114,15 +161,14 @@ const App = () => {
           <div className='text-green-300'>Input Amount By Token : {iniToken}</div>
           <div className='text-blue-200'>Out Amount By Token of Original Transaction : {outToken}</div>
           <div className='text-blue-300'>Out Amount By Token of New Transaction : {outTokenNew}</div>
-          <div className='text-yellow-100'>Profit By Token of Original Transaction : {preProfit}</div>
-          <div className='text-yellow-200'>Profit By Token of New Transaction : {absoProfit}</div>
-          <div className='text-pink-200'>Profit By BUSD of Original Transaction : {usdt !== 0 ? (preProfit * usdt) : "__"}</div>
-          <div className='text-pink-300'>Profit By BUSD of New Transaction : {usdt !== 0 ? (absoProfit * usdt) : "__"}</div>
+          <div className='text-yellow-100'>Profit By Token of Original Transaction : {preProfit}{unit}</div>
+          <div className='text-yellow-200'>Profit By Token of New Transaction : {absoProfit}{unit}</div>
+          <div className='text-pink-200'>Profit By BUSD of Original Transaction : {preProfit * usdt}US$</div>
+          <div className='text-pink-300'>Profit By BUSD of New Transaction : {absoProfit * usdt}US$</div>
           <div className='text-gray-300'>Gas Price : {gasPrice}BNB</div>
           <div className='text-gray-400'>Gas Used : {gasUsed}</div>
           <div className='text-gray-500'>Gas Fee : {transactionFee}BNB</div>
-          <div className='text-cyan-200'>Token Price : {usdt} US$</div>
-          <div className='text-gray-200'>Flashloan interest : {flashloan}</div>
+          <div className='text-cyan-200'>Token Price : {usdt}US$</div>
         </div>
       </div>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
