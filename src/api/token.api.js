@@ -34,7 +34,7 @@ const getAmountsOut = async (transferred, index) => {
 				amount = await routerContract.getAmountsOut(transferred[index].amount, [token0, token1]);
 			} catch {
 				if(!routerContract) {
-					toast.error(`Unregistered token ${transferred[index].symbol} found!`);
+					toast.error(`Unregistered pair ${transferred[index].symbol} - ${transferred[index + 1].symbol} found!`);
 				} else {
 					toast.error(`Unregistered contract found!`);
 				}
@@ -58,7 +58,7 @@ const getRefund = async (assetTransfer, paybackTransfer) => {
 		const amountIn = await routerContract.getAmountsIn(amountOut, [paybackTransfer.token, assetTransfer.token]);
 		return amountIn[0];
 	}
-	catch {
+	catch(e) {
 		return paybackTransfer.amount;
 	}
 }
