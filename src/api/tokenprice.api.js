@@ -10,16 +10,16 @@ let tokenAbi = [
 ];
 
 
-async function calcSell(tokensToSell, tokenAddres) {
+async function calcSell(tokensToSell, tokenAddress) {
 	const BNBTokenAddress = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" //BNB
 
-	let tokenRouter = await new web3.eth.Contract(tokenAbi, tokenAddres);
+	let tokenRouter = await new web3.eth.Contract(tokenAbi, tokenAddress);
 	let tokenDecimals = await tokenRouter.methods.decimals().call();
 	tokensToSell = setDecimals(tokensToSell, tokenDecimals);
 	let amountOut;
 	try {
 		let router = await new web3.eth.Contract(pancakeSwapAbi, pancakeSwapContract);
-		amountOut = await router.methods.getAmountsOut(tokensToSell, [tokenAddres, BNBTokenAddress]).call();
+		amountOut = await router.methods.getAmountsOut(tokensToSell, [tokenAddress, BNBTokenAddress]).call();
 		amountOut = web3.utils.fromWei(amountOut[1]);
 	} catch (error) { }
 

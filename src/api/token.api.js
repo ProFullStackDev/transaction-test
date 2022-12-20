@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import router from '../router';
 import pairAbi from '../abi/pair/pancakePairAbi.json';
 import stableCoins from './stablecoins';
+import { toast } from 'react-hot-toast';
 
 const getReserves = async (pairContract) => { // address of pair contract
 	let reserves = await pairContract.getReserves();
@@ -22,18 +23,26 @@ const getAmountsOut = async (transferred, index) => {
 		const index0 = stableCoinList.indexOf(token0.toLowerCase());
 		const index1 = stableCoinList.indexOf(token1.toLowerCase());
 		let amount;
-		if (index0 !== 0 && index1 !== 0 && index0 !== index1) {
+		if (index0 !== -1 && index1 !== -1 && index0 !== index1) {
 			const symbol = "Stable";
 			const contract = router[symbol];
 			amount = await contract.get_dy(index0, index1, transferred[index].amount);
 		} else {
 			const symbol = await pairContract.symbol();
 			const routerContract = router[symbol];
-			amount = await routerContract.getAmountsOut(transferred[index].amount, [token0, token1])[1];
+			try{
+				amount = await routerContract.getAmountsOut(transferred[index].amount, [token0, token1]);
+			} catch {
+				if(!routerContract) {
+					toast.error(`Unregistered token ${transferred[index].symbol} found!`);
+				} else {
+					toast.error(`Unregistered contract found!`);
+				}
+				return null;
+			}
 		}
-		return 4.459581014164950729;
-	}
-	catch (e) {
+		return amount[1] || amount || transferred[index + 1].amount;
+	} catch (e) {
 		return transferred[index + 1].amount;
 	}
 }

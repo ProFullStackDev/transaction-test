@@ -56,7 +56,11 @@ const getTokensTransferred = async (hash) => {
 	for (let i = 0; i < transaction.logs.length; i++) {
 		let log = transaction.logs[i];
 		if (log.topics.length === 3) {
-			let symbol = await getTokenSymbol(log.address);
+			try {
+			var symbol = await getTokenSymbol(log.address);
+			} catch {
+				continue;
+			}
 			transferred.push({
 				sender: parseAddress(log.topics[1]),
 				receiver: parseAddress(log.topics[2]),
@@ -70,6 +74,7 @@ const getTokensTransferred = async (hash) => {
 		if (log.topics.length === 1) i++;
 	}
 	transferred = filterTransaction(transferred);
+	console.log(transferred);
 	let gasUsed = transaction.gasUsed;
 	let gasPrice = transaction.effectiveGasPrice;
 	let contract = transaction.to.toLowerCase();

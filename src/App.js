@@ -38,7 +38,11 @@ const App = () => {
     setPreProfit(toBNB(previousProfit));
     console.log(tokensTransferred);
     let swaps = await currentSwaps(tokensTransferred);
-    toast.success("Profit calculated.");
+    if(!swaps) {
+      return;
+    } else {
+      toast.success("Profit calculated.");
+    }
     if (swaps.length === 0 || previousProfit === 0) {
       initValues();
     } else {
@@ -93,6 +97,7 @@ const App = () => {
     let swaps = [];
     for (let i = 0; i < tokensTransferred.length - 1; i++) {
       let amountOut = await getAmountsOut(tokensTransferred, i);
+      if( !amountOut) return null;
       if (tokensTransferred.filter(trans => trans.amount.eq(tokensTransferred[i + 1].amount)).length < 2) {
         tokensTransferred[i + 1].amount = amountOut;
       }
